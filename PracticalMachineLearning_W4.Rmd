@@ -1,0 +1,109 @@
+---
+title: "Predictive Model Assignment"
+author: "Rizli Anshari"
+date: "August 18, 2019"
+output:
+  html_document:
+    keep_md: yes
+---
+
+```{r, echo = FALSE, include = FALSE}
+library(caret)
+library(rpart)
+library(rattle)
+library(randomForest)
+set.seed(123)
+setwd("C:/Users/avria/Google Drive/!LEARNING/Data Science - 08.Practical Machine Learning")
+```
+
+## Synopsis
+The goal of this project is to predict the manner in which type of exercise they performed. This is the "classe" variable in the training set. 
+
+## Loading and Processing the Data
+```{r, echo = TRUE}
+train_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+test_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+training <- read.csv(url(train_url),header=TRUE)
+testing  <- read.csv(url(test_url),header=TRUE)
+```
+
+## Build a split between Training and Testing data set
+```{r, echo = TRUE}
+inTrain  <- createDataPartition(training$classe, p=0.7, list=FALSE)
+TrainingSet <- training[inTrain, ]
+TestingSet  <- training[-inTrain, ]
+dim(TrainingSet)
+dim(TestingSet)
+```
+
+## Cleaning the data
+# remove variables with Nearly Zero Variance
+```{r, echo = TRUE}
+NZV1 <- nearZeroVar(TrainingSet)
+NZV2 <- nearZeroVar(TestingSet)
+TrainingSet <- TrainingSet[, -NZV1]
+TestingSet  <- TestingSet[, -NZV2]
+dim(TrainingSet)
+dim(TestingSet)
+
+# remove variables with mostly NA
+AllNA1    <- sapply(TrainingSet, function(x) mean(is.na(x))) > 0.95
+AllNA2    <- sapply(TestingSet, function(x) mean(is.na(x))) > 0.95
+TrainingSet <- TrainingSet[, AllNA1==FALSE]
+TestingSet  <- TestingSet[, AllNA2==FALSE]
+dim(TrainingSet)
+dim(TestingSet)
+```
+
+## Exclude Column 1 to 5
+```{r, echo = TRUE}
+TrainingSet <- TrainingSet[, -(1:5)]
+TestingSet  <- TestingSet[, -(1:5)]
+dim(TrainingSet)
+dim(TestingSet)
+```
+
+## Prediction Model
+## Method 1: Random Forest
+Cross-validation is a resampling procedure used to evaluate machine learning models on a limited data sample. In this project we use k-fold = 3.
+```{r, echo = TRUE}
+controlRF <- trainControl(method="cv", number=3, verboseIter=FALSE)
+modelRandomForest <- train(classe ~ ., data=TrainingSet, method="rf", trControl=controlRF)
+modelRandomForest$finalModel
+# prediction on Test dataset
+predictRandomForest <- predict(modelRandomForest, newdata=TestingSet)
+confusionMatrixRandomForest <- confusionMatrix(predictRandomForest, TestingSet$classe)
+confusionMatrixRandomForest
+```
+
+## Method 2: Decision Tree
+```{r, echo = TRUE}
+modelDecisionTree <- rpart(classe ~ ., data=TrainingSet, method="class")
+# prediction on Test dataset
+predictDecisionTree <- predict(modelDecisionTree, newdata=TestingSet, type="class")
+confusionMatrixDecisionTree <- confusionMatrix(predictDecisionTree, TestingSet$classe)
+confusionMatrixDecisionTree
+```
+
+## Method 3: Gradient Boosting Model
+```{r, echo = TRUE}
+controlGBM <- trainControl(method = "repeatedcv", number = 5, repeats = 1)
+modelGBM  <- train(classe ~ ., data=TrainingSet, method = "gbm",trControl = controlGBM, verbose = FALSE)
+modelGBM$finalModel
+# prediction on Test dataset
+predictGBM <- predict(modelGBM, newdata=TestingSet)
+confusionMatrixGBM <- confusionMatrix(predictGBM, TestingSet$classe)
+confusionMatrixGBM
+```
+
+## Prediction with RandomForest
+In this model, RandomForest is choosen because it has the highest accuracy rate compare with other two models, Decision Tree and Gradient Boosting Model
+
+## Expected out-of-sample error
+The expected out-of-sample error is very low, estimated at 0.5%. The expected out-of-sample error is calculated as 1 - accuracy for predictions made. Test data set is consisted with 20 cases. The accuracy is very high >99%, our expectation is that almost none of the test samples would be missclassified.
+
+```{r, echo = TRUE}
+predictRFtest <- predict(modelRandomForest, newdata=testing)
+predictRFtest
+```
+
